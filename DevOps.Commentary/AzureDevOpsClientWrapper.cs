@@ -3,6 +3,8 @@
     using PinaryDevelopment.Utilities.External.AzureDevOps.CommentCreator.Models.Exploratory;
     using PinaryDevelopment.Utilities.External.AzureDevOps.CommentCreator.Models.Git;
     using System;
+    using System.Collections.Generic;
+    using System.Linq;
     using System.Net.Http;
     using System.Net.Http.Headers;
     using System.Text;
@@ -53,45 +55,74 @@
             return (await HttpClient.PostWithResponse<NewBranchRef[], RefSet<NewRef>>($"{BaseUrl}refs?{ApiVersionQueryParameter}", new[] { new NewBranchRef(newBranchName, masterBranch.ObjectId) }).ConfigureAwait(false)).Value[0];
         }
 
-        private Task CreatePush(PostComment comment, string masterBranchObjectId, string newBranchName)
+        private async Task<GitPush> CreatePush(PostComment comment, string masterBranchObjectId, string newBranchName)
         {
             var newPush = new CreatePushRequestBody
             {
                 Commits = new[]
+                {
+                    new GitCommitRef
                     {
-                        new GitCommitRef
-                        {
-                            Changes = new[]
-                            {
-                                new GitChange
-                                {
-                                    ChangeType = VersionControlChangeType.Add,
-                                    Item = new CommitItem
-                                    {
-                                        Path = comment.FilePath
-                                    },
-                                    NewContent = new ItemContent
-                                    {
-                                        Content = comment.Comment
-                                    }
-                                }
-                            },
-                            Comment = "new comment"
-                        }
-                    },
-                RefUpdates = new[]
-                    {
-                        new GitRefUpdate
-                        {
-                            Name = newBranchName,
-                            OldObjectId = masterBranchObjectId
-                        }
+                        Changes = await CreateChanges(comment).ConfigureAwait(false),
+                        Comment = "new comment"
                     }
+                },
+                RefUpdates = new[]
+                {
+                    new GitRefUpdate
+                    {
+                        Name = newBranchName,
+                        OldObjectId = masterBranchObjectId
+                    }
+                }
             };
-            return HttpClient.PostWithResponse<CreatePushRequestBody, GitPush>($"{BaseUrl}pushes?api-version=5.1-preview.2", newPush);
+
+            return await HttpClient.PostWithResponse<CreatePushRequestBody, GitPush>($"{BaseUrl}pushes?api-version=5.1-preview.2", newPush).ConfigureAwait(false);
         }
 
-        private Task CreatePullRequest(string masterBranchName, string newBranchName)
+        private async Task<GitChange[]> CreateChanges(PostComment comment)
+        {
+            return CreateAttachmentAdds(comment.Attachments)
+                .Append(await CreatePostUpdate(comment).ConfigureAwait(false))
+                .ToArray();
+        }
+
+        private async Task<GitChange> CreatePostUpdate(PostComment comment)
+        {
+            var item = await HttpClient.GetFileContents($"{BaseUrl}items?path={comment.FilePath}&{ApiVersionQueryParameter}").ConfigureAwait(false);
+            item = $"{item}\n{comment.Comment}";
+            return new GitChange
+            {
+                ChangeType = VersionControlChangeType.Edit,
+                Item = new CommitItem
+                {
+                    Path = comment.FilePath
+                },
+                NewContent = new ItemContent
+                {
+                    Content = item
+                }
+            };
+        }
+
+        private IEnumerable<GitChange> CreateAttachmentAdds(Attachment[] attachments)
+        {
+            return attachments.Select(attachment => new GitChange
+            {
+                ChangeType = VersionControlChangeType.Add,
+                Item = new CommitItem
+                {
+                    Path = $"Client/src/assets/comments/{attachment.FileName}"
+                },
+                NewContent = new ItemContent
+                {
+                    Content = attachment.Base64EncodedContent,
+                    ContentType = ItemContentType.Base64Encoded
+                }
+            });
+        }
+
+        private Task<GitPullRequest> CreatePullRequest(string masterBranchName, string newBranchName)
         {
             var newPullRequest = new CreatePullRequestBody
             {
@@ -99,6 +130,7 @@
                 TargetRefName = masterBranchName,
                 Title = "new comment for review"
             };
+
             return HttpClient.PostWithResponse<CreatePullRequestBody, GitPullRequest>($"{BaseUrl}pullrequests?{ApiVersionQueryParameter}", newPullRequest);
         }
     }

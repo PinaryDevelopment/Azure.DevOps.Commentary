@@ -5,9 +5,6 @@ namespace PinaryDevelopment.Utilities.External.AzureDevOps.CommentCreator
     using Microsoft.Azure.WebJobs;
     using Microsoft.Azure.WebJobs.Extensions.Http;
     using Microsoft.Extensions.Logging;
-    using Newtonsoft.Json;
-    using PinaryDevelopment.Utilities.External.AzureDevOps.CommentCreator.Models.Exploratory;
-    using System.IO;
     using System.Threading.Tasks;
 
     public static class CommentCreator
@@ -17,8 +14,7 @@ namespace PinaryDevelopment.Utilities.External.AzureDevOps.CommentCreator
         {
             log.LogInformation("C# HTTP trigger function processed a request.");
 
-            var requestBody = await new StreamReader(req.Body).ReadToEndAsync().ConfigureAwait(false);
-            var comment = JsonConvert.DeserializeObject<PostComment>(requestBody);
+            var comment = await new CommentMapper().Map(req).ConfigureAwait(false);
 
             await new AzureDevOpsClientWrapper().CreatePostComment(comment).ConfigureAwait(false);
 

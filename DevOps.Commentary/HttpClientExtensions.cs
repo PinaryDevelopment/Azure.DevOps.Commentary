@@ -18,6 +18,16 @@
             }
         }
 
+        public static async Task<string> GetFileContents(this HttpClient client, string url)
+        {
+            using (var response = await client.GetAsync(url).ConfigureAwait(false))
+            {
+                // var str = await response.Content.ReadAsStringAsync().ConfigureAwait(false); // for debugging purposes
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            }
+        }
+
         private static readonly JsonSerializerSettings JsonSerializerSettings = new JsonSerializerSettings
         {
             ContractResolver = new DefaultContractResolver

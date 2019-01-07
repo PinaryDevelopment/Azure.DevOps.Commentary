@@ -1,8 +1,8 @@
 ﻿namespace PinaryDevelopment.Utilities.External.AzureDevOps.CommentCreator.Models.Git
 {
-    public class ItemContentType
+    public enum ItemContentType
     {
-        public string Base64Encoded { get; set; }
-        public string RawText { get; set; }
+        Base64Encoded = 1
+        // RawText = 0 ?
     }
 }

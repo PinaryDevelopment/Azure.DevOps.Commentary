@@ -13,5 +13,7 @@
         public string Website { get; set; } // person website of user making comment
 
         public int ReferenceId { get; set; } // meant to represent the id of the comment this comment is in response to
+
+        public Attachment[] Attachments { get; set; }
     }
 }
